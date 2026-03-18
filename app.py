@@ -23,12 +23,24 @@ def similarity(a, b):
 def crossref_lookup(doi):
     doi = clean_doi(doi)
     url = f"{CROSSREF_BASE}/works/{quote(doi)}"
-    headers = {"User-Agent": f"mailto:{CROSSREF_MAILTO}"}
-    r = requests.get(url, headers=headers)
-    if r.status_code == 404:
+
+    headers = {
+        "User-Agent": f"BibliographyGPT (mailto:{CROSSREF_MAILTO})"
+    }
+
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        if r.status_code != 200:
+            return None
+
+        data = r.json()
+        if "message" not in data:
+            return None
+
+        return data["message"]
+
+    except Exception:
         return None
-    r.raise_for_status()
-    return r.json()["message"]
 
 @app.get("/health")
 def health():
