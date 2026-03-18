@@ -1,0 +1,59 @@
+openapi: 3.1.0
+info:
+  title: Bibliography API
+  version: 1.0.0
+
+servers:
+  - url: https://your-domain.example.com
+
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      responses:
+        "200":
+          description: OK
+
+  /search_openalex:
+    get:
+      operationId: searchOpenAlex
+      parameters:
+        - name: topic
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+
+  /verify_doi:
+    get:
+      operationId: verifyDoi
+      parameters:
+        - name: doi
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+
+  /validate_citation:
+    post:
+      operationId: validateCitation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                doi:
+                  type: string
+                title:
+                  type: string
+      responses:
+        "200":
+          description: OK
