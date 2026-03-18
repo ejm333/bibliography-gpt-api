@@ -75,8 +75,6 @@ def search_openalex():
         })
 
     return jsonify(results)
-
-
 @app.get("/verify_doi")
 def verify_doi():
     doi = request.args.get("doi")
@@ -84,21 +82,11 @@ def verify_doi():
         return jsonify({"error": "Missing DOI"}), 400
 
     msg = crossref_lookup(doi)
-    if not msg:
-        return jsonify({
-            "valid": False,
-            "reason": "DOI not found or Crossref lookup failed"
-        })
-
     return jsonify({
-        "valid": True,
-        "doi": msg.get("DOI"),
-        "title": msg.get("title", [None])[0] if msg.get("title") else None,
-        "journal": msg.get("container-title", [None])[0] if msg.get("container-title") else None,
-        "publisher": msg.get("publisher"),
-        "type": msg.get("type")
+        "input_doi": doi,
+        "crossref_message": msg
     })
-    
+
 @app.post("/validate_citation")
 def validate_citation():
     data = request.get_json()
