@@ -4,7 +4,7 @@ info:
   version: 1.0.0
 
 servers:
-  - url: https://your-domain.example.com
+  - url: https://bibliography-gpt-api.onrender.com
 
 paths:
   /health:
