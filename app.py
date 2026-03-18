@@ -82,12 +82,48 @@ def search_openalex():
 @app.get("/verify_doi")
 def verify_doi():
     doi = request.args.get("doi")
+    if not doi:
+        return jsonify({"error": "Missing DOI"}), 400
 
+    doi = clean_doi(doi)
+
+    # 1. Try Crossref
     msg = crossref_lookup(doi)
+    if msg and not msg.get("_error"):
+        return jsonify({
+            "valid": True,
+            "source": "Crossref",
+            "doi": msg.get("DOI"),
+            "title": msg.get("title", [None])[0] if msg.get("title") else None,
+            "journal": msg.get("container-title", [None])[0] if msg.get("container-title") else None,
+            "publisher": msg.get("publisher"),
+            "type": msg.get("type")
+        })
+
+    # 2. Fallback to OpenAlex
+    openalex_url = f"{OPENALEX_BASE}/works/https://doi.org/{doi}"
+    try:
+        r = requests.get(openalex_url, timeout=20)
+        if r.status_code == 200:
+            oa = r.json()
+            primary_location = oa.get("primary_location") or {}
+            source = primary_location.get("source") or {}
+            return jsonify({
+                "valid": True,
+                "source": "OpenAlex",
+                "doi": oa.get("doi"),
+                "title": oa.get("display_name"),
+                "journal": source.get("display_name"),
+                "publication_year": oa.get("publication_year"),
+                "reason": "DOI not found in Crossref but found in OpenAlex"
+            })
+    except Exception:
+        pass
 
     return jsonify({
-        "input_doi": doi,
-        "crossref_message": msg
+        "valid": False,
+        "source": "Crossref/OpenAlex",
+        "reason": "DOI not found in Crossref or OpenAlex"
     })
 
 @app.post("/validate_citation")
