@@ -22,47 +22,33 @@ def similarity(a, b):
 
 def crossref_lookup(doi):
     doi = clean_doi(doi)
-    url = f"{CROSSREF_BASE}/works/{quote(doi, safe='')}"
+
+    url = f"https://api.crossref.org/works/{quote(doi, safe='')}"
 
     headers = {
-        "User-Agent": f"BibliographyGPT/1.0 (mailto:{CROSSREF_MAILTO})",
+        "User-Agent": f"mailto:{CROSSREF_MAILTO}",
         "Accept": "application/json"
     }
 
     try:
         r = requests.get(url, headers=headers, timeout=20)
 
-        if r.status_code == 404:
-            return {"_error": "not_found", "_status_code": 404}
+        print("STATUS:", r.status_code)
+        print("TEXT:", r.text[:500])  # DEBUG OUTPUT
 
         if r.status_code != 200:
-            return {
-                "_error": "http_error",
-                "_status_code": r.status_code,
-                "_text": r.text[:500]
-            }
+            return None
 
         data = r.json()
 
         if "message" not in data:
-            return {
-                "_error": "missing_message",
-                "_status_code": 200,
-                "_data": data
-            }
+            return None
 
         return data["message"]
 
-    except requests.exceptions.RequestException as e:
-        return {
-            "_error": "request_exception",
-            "_detail": str(e)
-        }
-    except ValueError as e:
-        return {
-            "_error": "json_parse_error",
-            "_detail": str(e)
-        }
+    except Exception as e:
+        print("ERROR:", str(e))
+        return None
 
 @app.get("/health")
 def health():
@@ -96,31 +82,12 @@ def search_openalex():
 @app.get("/verify_doi")
 def verify_doi():
     doi = request.args.get("doi")
-    if not doi:
-        return jsonify({"error": "Missing DOI"}), 400
 
     msg = crossref_lookup(doi)
 
-    if not msg:
-        return jsonify({
-            "valid": False,
-            "reason": "Unknown lookup failure"
-        })
-
-    if isinstance(msg, dict) and msg.get("_error"):
-        return jsonify({
-            "valid": False,
-            "reason": msg["_error"],
-            "details": msg
-        })
-
     return jsonify({
-        "valid": True,
-        "doi": msg.get("DOI"),
-        "title": msg.get("title", [None])[0] if msg.get("title") else None,
-        "journal": msg.get("container-title", [None])[0] if msg.get("container-title") else None,
-        "publisher": msg.get("publisher"),
-        "type": msg.get("type")
+        "input_doi": doi,
+        "crossref_message": msg
     })
 
 @app.post("/validate_citation")
