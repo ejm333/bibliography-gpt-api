@@ -33,19 +33,36 @@ def crossref_lookup(doi):
         r = requests.get(url, headers=headers, timeout=20)
 
         if r.status_code == 404:
-            return None
+            return {"_error": "not_found", "_status_code": 404}
 
-        r.raise_for_status()
+        if r.status_code != 200:
+            return {
+                "_error": "http_error",
+                "_status_code": r.status_code,
+                "_text": r.text[:500]
+            }
 
         data = r.json()
-        return data.get("message")
+
+        if "message" not in data:
+            return {
+                "_error": "missing_message",
+                "_status_code": 200,
+                "_data": data
+            }
+
+        return data["message"]
 
     except requests.exceptions.RequestException as e:
-        print(f"Crossref request failed: {e}")
-        return None
+        return {
+            "_error": "request_exception",
+            "_detail": str(e)
+        }
     except ValueError as e:
-        print(f"Crossref JSON parse failed: {e}")
-        return None
+        return {
+            "_error": "json_parse_error",
+            "_detail": str(e)
+        }
 
 @app.get("/health")
 def health():
@@ -75,6 +92,7 @@ def search_openalex():
         })
 
     return jsonify(results)
+
 @app.get("/verify_doi")
 def verify_doi():
     doi = request.args.get("doi")
@@ -82,9 +100,27 @@ def verify_doi():
         return jsonify({"error": "Missing DOI"}), 400
 
     msg = crossref_lookup(doi)
+
+    if not msg:
+        return jsonify({
+            "valid": False,
+            "reason": "Unknown lookup failure"
+        })
+
+    if isinstance(msg, dict) and msg.get("_error"):
+        return jsonify({
+            "valid": False,
+            "reason": msg["_error"],
+            "details": msg
+        })
+
     return jsonify({
-        "input_doi": doi,
-        "crossref_message": msg
+        "valid": True,
+        "doi": msg.get("DOI"),
+        "title": msg.get("title", [None])[0] if msg.get("title") else None,
+        "journal": msg.get("container-title", [None])[0] if msg.get("container-title") else None,
+        "publisher": msg.get("publisher"),
+        "type": msg.get("type")
     })
 
 @app.post("/validate_citation")
