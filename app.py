@@ -22,24 +22,29 @@ def similarity(a, b):
 
 def crossref_lookup(doi):
     doi = clean_doi(doi)
-    url = f"{CROSSREF_BASE}/works/{quote(doi)}"
+    url = f"{CROSSREF_BASE}/works/{quote(doi, safe='')}"
 
     headers = {
-        "User-Agent": f"BibliographyGPT (mailto:{CROSSREF_MAILTO})"
+        "User-Agent": f"BibliographyGPT/1.0 (mailto:{CROSSREF_MAILTO})",
+        "Accept": "application/json"
     }
 
     try:
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code != 200:
+        r = requests.get(url, headers=headers, timeout=20)
+
+        if r.status_code == 404:
             return None
+
+        r.raise_for_status()
 
         data = r.json()
-        if "message" not in data:
-            return None
+        return data.get("message")
 
-        return data["message"]
-
-    except Exception:
+    except requests.exceptions.RequestException as e:
+        print(f"Crossref request failed: {e}")
+        return None
+    except ValueError as e:
+        print(f"Crossref JSON parse failed: {e}")
         return None
 
 @app.get("/health")
@@ -71,6 +76,7 @@ def search_openalex():
 
     return jsonify(results)
 
+
 @app.get("/verify_doi")
 def verify_doi():
     doi = request.args.get("doi")
@@ -79,14 +85,20 @@ def verify_doi():
 
     msg = crossref_lookup(doi)
     if not msg:
-        return jsonify({"valid": False})
+        return jsonify({
+            "valid": False,
+            "reason": "DOI not found or Crossref lookup failed"
+        })
 
     return jsonify({
         "valid": True,
-        "title": msg.get("title", [None])[0],
-        "journal": msg.get("container-title", [None])[0]
+        "doi": msg.get("DOI"),
+        "title": msg.get("title", [None])[0] if msg.get("title") else None,
+        "journal": msg.get("container-title", [None])[0] if msg.get("container-title") else None,
+        "publisher": msg.get("publisher"),
+        "type": msg.get("type")
     })
-
+    
 @app.post("/validate_citation")
 def validate_citation():
     data = request.get_json()
